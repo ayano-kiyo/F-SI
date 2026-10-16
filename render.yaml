@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: f-si-simulator-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu -r requirements-rl.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: SIMULATOR_CORS_ORIGINS
+        value: "*"
+      - key: SIMULATOR_AUTO_LOAD_CHECKPOINT
+        value: "true"

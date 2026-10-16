@@ -1,0 +1,4 @@
+Asset: Rigyd f1_car (original GLB referenced by the supplied USD metadata)
+Source URL: https://assets.rigyd.com/f1_car_c096fd304b.glb
+Source metadata license: proprietary
+The source asset metadata identifies the asset as proprietary. Retain this notice and confirm applicable rights before redistributing the model.

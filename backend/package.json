@@ -1,0 +1,14 @@
+{
+  "name": "f-si-cloudflare-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler check",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}

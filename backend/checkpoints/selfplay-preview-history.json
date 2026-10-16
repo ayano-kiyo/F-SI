@@ -1,0 +1,17 @@
+[
+ {
+  "iteration": 1,
+  "global_step": 8,
+  "completed_races": 0,
+  "recent_finish_rate": 0.0,
+  "recent_collisions_per_race": 0.0,
+  "mean_reward_step": -0.0007896439637988806,
+  "mean_advantage": 0.0022039515897631645,
+  "policy_loss": -0.04829046339727938,
+  "value_loss": 0.02560203474968148,
+  "entropy": 2.8360749582449594,
+  "clip_frac": 0.14583333333333334,
+  "updates": 48.0,
+  "elapsed_s": 0.10837258299943642
+ }
+]
