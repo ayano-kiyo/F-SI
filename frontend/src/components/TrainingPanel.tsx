@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Clipboard, Flag, RefreshCw } from 'lucide-react'
-import type { CheckpointSummary } from '../types'
+import type { CheckpointSummary, Telemetry } from '../types'
 
 const trainingCommand = 'cd backend && (test -x .venv/bin/python || python3 -m venv .venv) && .venv/bin/python -m pip install -r requirements-rl.txt && .venv/bin/python -m app.rl.train --num-races 8 --cars-per-race 4 --preview-every 1 --total-steps 2000000'
 
@@ -10,12 +10,16 @@ export function TrainingPanel({
   activeCheckpoint,
   onRefresh,
   onLoad,
+  telemetry,
+  send,
 }: {
   checkpoints: CheckpointSummary[]
   latestCheckpoint: string | null
   activeCheckpoint: string | null
   onRefresh: () => Promise<void>
   onLoad: (name: string) => Promise<void>
+  telemetry: Telemetry | null
+  send: (command: Record<string, string | number>) => void
 }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState('')
@@ -23,6 +27,9 @@ export function TrainingPanel({
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [carsPerRace, setCarsPerRace] = useState('4')
+  const trainingLive = telemetry?.race?.training ?? false
+  const raceActive = Boolean(telemetry?.race && !trainingLive)
 
   useEffect(() => {
     if (selected && checkpoints.some((checkpoint) => checkpoint.name === selected)) return
@@ -100,7 +107,24 @@ export function TrainingPanel({
         </button>
       </div>
 
-      <p className="training-copy">Run this from the project root in a terminal to train eight four-car races on this computer. The hosted simulator races with the checkpoint deployed on its backend; local training results stay here until you deploy the updated checkpoint.</p>
+      <div className="race-launcher">
+        <label className="training-label" htmlFor="race-car-count">RACE GRID</label>
+        <div className="checkpoint-row">
+          <select id="race-car-count" value={carsPerRace} onChange={(event) => setCarsPerRace(event.target.value)} disabled={trainingLive}>
+            {[2, 3, 4].map((count) => <option key={count} value={count}>{count} cars</option>)}
+          </select>
+          <button className="checkpoint-load-button" onClick={() => send({ type: 'start_race', cars_per_race: Number(carsPerRace) })} disabled={trainingLive}>
+            {raceActive ? 'Restart race' : 'Start race'}
+          </button>
+        </div>
+        <button className="training-copy-button" onClick={() => send({ type: 'stop_race' })} disabled={!raceActive || trainingLive}>
+          Return to solo
+        </button>
+        <p className="training-copy">Run an autonomous 2–4 car race on the selected circuit. A loaded self-play checkpoint drives the grid; otherwise the baseline driver is used.</p>
+      </div>
+
+      <div className="training-divider" />
+      <p className="training-copy">Train a shared policy locally, then load its checkpoint into this simulator. Local training results stay here until you deploy the updated checkpoint.</p>
       <code className="training-command">{trainingCommand}</code>
       <button className="training-copy-button" onClick={copyCommand}>
         {copied ? <Check size={14} /> : <Clipboard size={14} />}

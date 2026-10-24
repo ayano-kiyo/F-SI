@@ -45,7 +45,7 @@ export default function App() {
   return <main className="simulator-shell">
     <section className="scene-stage" aria-label={`${activeLabel} circuit simulator`}>
       {track
-        ? <Suspense fallback={<div className="scene-loading"><div className="loading-pulse" />Preparing 3D renderer…</div>}><TrackScene key={track.name} track={track} telemetryFrames={telemetryFrames} cameraMode={cameraMode} vehicleCount={telemetry?.vehicles?.length ?? 1} /></Suspense>
+        ? <Suspense fallback={<div className="scene-loading"><div className="loading-pulse" />Preparing 3D renderer…</div>}><TrackScene key={track.name} track={track} telemetryFrames={telemetryFrames} cameraMode={cameraMode} vehicleIds={telemetry?.vehicles?.map((vehicle) => vehicle.id) ?? ['car-1']} /></Suspense>
         : <div className="scene-loading"><div className="loading-pulse" />{error ? 'Track service unavailable' : 'Loading circuit geometry…'}</div>}
 
       <header className="top-hud">
@@ -63,6 +63,8 @@ export default function App() {
           activeCheckpoint={activeCheckpoint}
           onRefresh={refreshCheckpoints}
           onLoad={loadCheckpoint}
+          telemetry={telemetry}
+          send={send}
         />}
       <RaceStandings telemetry={telemetry} />
       {telemetry?.progress.off_track && <div className="track-alert">OFF TRACK <span>· {telemetry.progress.lateral_error_m.toFixed(1)} m</span></div>}

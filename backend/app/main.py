@@ -242,6 +242,10 @@ async def _apply_command(websocket: WebSocket, command: dict) -> None:
             engine.set_speed(float(command.get("value")))
         elif command_type == "set_controller":
             engine.set_controller(str(command.get("value")))
+        elif command_type == "start_race":
+            engine.start_race(command.get("cars_per_race", 4))
+        elif command_type == "stop_race":
+            engine.stop_race()
         elif command_type == "set_track":
             value = command.get("value")
             if not isinstance(value, str) or not value.strip():

@@ -15,7 +15,7 @@ export function SimulationControls({ telemetry, send, demoMode = false }: { tele
       ? 'DEMO AUTO'
       : telemetry?.race?.training
       ? 'TRAINING LIVE'
-      : telemetry?.race ? 'SELF-PLAY' : telemetry?.controller.name === 'neural_network' ? 'NEURAL' : 'BASELINE'}</span>
+      : telemetry?.race ? telemetry.controller.name === 'neural_network' ? 'SELF-PLAY' : 'MULTI-CAR' : telemetry?.controller.name === 'neural_network' ? 'NEURAL' : 'BASELINE'}</span>
     <div className="simulation-actions">
       <button className="sim-action pause-action" onClick={() => send({ type: paused ? 'resume' : 'pause' })} disabled={trainingLive} aria-label={paused ? 'Resume simulation' : 'Pause simulation'} title={trainingLive ? 'Training is controlled by the terminal process' : paused ? 'Resume' : 'Pause'}>
         {paused ? <Play size={15} fill="currentColor" /> : <Pause size={15} fill="currentColor" />}

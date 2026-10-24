@@ -128,7 +128,7 @@ button { color: inherit; font: inherit; }
 .training-trigger { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 12px; color: #dfe2e1; font: 9px var(--mono); letter-spacing: .08em; cursor: pointer; }
 .training-trigger:hover, .training-copy-button:hover, .checkpoint-load-button:hover { border-color: rgba(225, 228, 227, .34); background-color: rgba(47, 50, 51, .9); }
 .training-trigger .rotated { transform: rotate(180deg); }
-.training-card { display: grid; gap: 10px; width: 100%; margin-top: 8px; padding: 15px; }
+.training-card { display: grid; gap: 10px; width: 100%; max-height: min(82vh, 760px); margin-top: 8px; padding: 15px; overflow-y: auto; }
 .training-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .training-kicker, .training-label { color: #909696; font: 7px var(--mono); letter-spacing: .1em; }
 .training-heading h2 { margin: 5px 0 0; color: #e6e8e7; font-size: 15px; font-weight: 500; }
@@ -143,7 +143,7 @@ button { color: inherit; font: inherit; }
 .checkpoint-row select { min-width: 0; height: 34px; padding: 0 8px; border: 1px solid rgba(218, 223, 222, .13); border-radius: 4px; color: #d8dcda; background: #171c1d; font: 9px var(--mono); }
 .checkpoint-row select:disabled { opacity: .6; }
 .checkpoint-load-button { padding: 0 11px; }
-.checkpoint-load-button:disabled { opacity: .5; cursor: default; }
+.checkpoint-load-button:disabled, .training-copy-button:disabled { opacity: .5; cursor: default; }
 .checkpoint-active, .training-message { color: #99a19e; font: 8px/1.5 var(--mono); overflow-wrap: anywhere; }
 .training-message { color: #d2d7d5; }
 
