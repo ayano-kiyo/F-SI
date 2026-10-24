@@ -36,7 +36,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. Vite proxies `/api` and `/ws` to FastAPI on port 8000. The WebSocket controls pause, resume, reset, simulation speed, and controller selection. Browser rendering runs independently from the server's fixed-step physics.
+Open <http://localhost:5173>. Vite proxies `/api` and `/ws` to FastAPI on port 8000. The WebSocket controls pause, resume, reset, simulation speed, and controller selection. Open **Train / Race** to start an autonomous 2-, 3-, or 4-car race on the selected circuit without training a policy first; a loaded shared self-play checkpoint is used when available, otherwise the built-in baseline controller drives each car. Use **Return to solo** to leave the race. Browser rendering runs independently from the server's fixed-step physics.
 
 Optional frontend proxy/API settings are listed in `frontend/.env.example`.
 
@@ -71,7 +71,7 @@ backend/app/
   planner.py         JEV route choice, curvature speed envelope
   controller.py      baseline controller and legacy solo neural policy
   dynamics.py        fixed-step kinematic bicycle model
-  simulation.py      state, lap timing, controls, reset and speed scaling
+  simulation.py      state, lap timing, solo and multi-car races, controls and reset
   main.py            REST metadata and WebSocket telemetry/control endpoint
   rl/                PyTorch PPO, multi-car race worlds, observations and evaluation
 frontend/src/
@@ -123,7 +123,7 @@ Connect to `ws://localhost:8000/ws/simulation` (the Vite proxy makes the browser
 }
 ```
 
-List tracks with `GET /api/tracks` and fetch one with `GET /api/track?name=Monza` (or `POST /api/track` with `{"name":"Monza"}`). Client commands are JSON objects: `{"type":"pause"}`, `{"type":"resume"}`, `{"type":"reset"}`, `{"type":"set_speed","value":2}`, `{"type":"set_controller","value":"baseline"}`, and `{"type":"set_track","value":"Monza"}`. List checkpoints with `GET /api/rl/checkpoints` and load one with `POST /api/rl/checkpoint`.
+List tracks with `GET /api/tracks` and fetch one with `GET /api/track?name=Monza` (or `POST /api/track` with `{"name":"Monza"}`). Client commands are JSON objects: `{"type":"pause"}`, `{"type":"resume"}`, `{"type":"reset"}`, `{"type":"set_speed","value":2}`, `{"type":"set_controller","value":"baseline"}`, `{"type":"set_track","value":"Monza"}`, `{"type":"start_race","cars_per_race":4}`, and `{"type":"stop_race"}`. Race fields must contain 2–4 cars. List checkpoints with `GET /api/rl/checkpoints` and load one with `POST /api/rl/checkpoint`.
 
 ## Assets and source licenses
 

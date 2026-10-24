@@ -73,9 +73,52 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(self.sim.sim_time_s, 0.0)
         self.assertEqual(self.sim.simulation_speed, 1.0)
 
+    def test_baseline_multi_car_race_starts_and_returns_to_solo(self):
+        self.sim.start_race(cars_per_race=3)
+        telemetry = self.sim.snapshot()
+        self.assertEqual(len(telemetry["vehicles"]), 3)
+        self.assertIsNotNone(telemetry["race"])
+        self.assertEqual(telemetry["controller"]["name"], "baseline")
+        self.assertEqual({car["position"] for car in telemetry["vehicles"]}, {1, 2, 3})
+
+        for _ in range(180):
+            self.sim.step()
+        self.assertGreater(self.sim.sim_time_s, 0.0)
+        self.assertEqual(len(self.sim.snapshot()["vehicles"]), 3)
+        self.assertEqual(int(self.sim.race_env.collision_count[0]), 0)
+
+        self.sim.stop_race()
+        solo = self.sim.snapshot()
+        self.assertIsNone(solo.get("race"))
+        self.assertEqual(len(solo["vehicles"]), 1)
+        self.assertIsNone(self.sim.race_env)
+
+    def test_race_field_size_is_validated_and_survives_track_change(self):
+        for count in (1, 5, True, 2.0):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                self.sim.start_race(count)
+
+        from app.track_geometry import load_track
+        self.sim.start_race(cars_per_race=2)
+        self.sim.set_track(load_track("Monza"))
+        self.assertEqual(self.sim.track.name, "Monza")
+        self.assertEqual(self.sim.race_env.cars_per_race, 2)
+        self.assertEqual(len(self.sim.snapshot()["vehicles"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+class CheckpointMetadataTests(unittest.TestCase):
+    def test_policy_metadata_matches_supported_observation_layouts(self):
+        from app.rl.policy_io import validate_policy_metadata
+
+        self.assertEqual(validate_policy_metadata(25, 1), (25, 1))
+        self.assertEqual(validate_policy_metadata(31, 4), (31, 4))
+        for obs_dim, cars in ((25, 2), (31, 1), (31, 5), (30, 4)):
+            with self.subTest(obs_dim=obs_dim, cars=cars), self.assertRaises(ValueError):
+                validate_policy_metadata(obs_dim, cars)
+
 
 class MultiTrackTests(unittest.TestCase):
     def test_track_catalog_has_expected_circuits(self):

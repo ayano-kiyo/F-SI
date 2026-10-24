@@ -61,15 +61,15 @@ const LiveTrajectoryLine = memo(function LiveTrajectoryLine({ telemetryFrames }:
   return <primitive object={line} />
 })
 
-export const TrackScene = memo(function TrackScene({ track, telemetryFrames, cameraMode, vehicleCount }: {
+export const TrackScene = memo(function TrackScene({ track, telemetryFrames, cameraMode, vehicleIds }: {
   track: TrackPayload
   telemetryFrames: TelemetryFrameBuffer
   cameraMode: CameraMode
-  vehicleCount: number
+  vehicleIds: string[]
 }) {
   const visualPose = useRef<VisualRacePose>({})
   const fallbackPosition = track.race_line[0]
-  const vehicleIds = Array.from({ length: Math.max(1, vehicleCount) }, (_, index) => 'car-' + (index + 1))
+  const visibleVehicleIds = vehicleIds.length ? vehicleIds : ['car-1']
   const carColors = ['#dce5df', '#e56a43', '#64b5d6', '#d5b45f']
   return <Canvas
     dpr={[0.65, 1]}
@@ -90,7 +90,7 @@ export const TrackScene = memo(function TrackScene({ track, telemetryFrames, cam
     <LiveTrajectoryLine telemetryFrames={telemetryFrames} />
     <VisualPoseSampler telemetryFrames={telemetryFrames} visualPose={visualPose} />
     <Suspense fallback={null}>
-      {vehicleIds.map((vehicleId, index) => <Car
+      {visibleVehicleIds.map((vehicleId, index) => <Car
         key={vehicleId}
         visualPoses={visualPose}
         vehicleId={vehicleId}

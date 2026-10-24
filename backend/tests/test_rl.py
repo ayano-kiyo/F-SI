@@ -129,6 +129,14 @@ class RacingSelfPlayTests(unittest.TestCase):
         self.assertGreater(stats["updates"], 0)
         self.assertTrue(all(math.isfinite(stats[key]) for key in ("policy_loss", "value_loss", "entropy")))
 
+    def test_checkpoint_rejects_inconsistent_race_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid-race.pt"
+            policy = ActorCritic(obs_dim=OBS_DIM)
+            torch.save({"obs_dim": OBS_DIM, "cars_per_race": 1, "policy": policy.state_dict()}, path)
+            with self.assertRaisesRegex(ValueError, "Race checkpoints must use obs_dim=31"):
+                load_policy(path)
+
     def test_checkpoint_versions_and_multi_car_telemetry(self):
         from app.simulation import SimulationEngine
         from app.rl.train import _checkpoint_payload

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ class SimulationEngine:
         self.track_name = track.name
         self.checkpoint_path: str | None = None
         self.race_env = None
+        self.race_driver_name: str | None = None
         self._race_phase = 0
         self._race_actions = []
         self._race_finished = False
@@ -33,11 +35,12 @@ class SimulationEngine:
         self.controller_name = "baseline"
         self.reset()
 
-    def _make_race_env(self) -> None:
+    def _make_race_env(self, cars_per_race: int | None = None, driver_name: str = "neural_network") -> None:
         import numpy as np
         from .rl.env import RacingVecEnv, ResetConfig
 
-        cars_per_race = int(getattr(self.neural.policy, "cars_per_race", 4))
+        if cars_per_race is None:
+            cars_per_race = int(getattr(self.neural.policy, "cars_per_race", 4))
         self.race_env = RacingVecEnv(
             [self.track],
             num_envs=1,
@@ -52,18 +55,23 @@ class SimulationEngine:
             auto_reset=False,
         )
         self._race_actions = np.zeros((cars_per_race, 2), dtype=np.float32)
+        self.race_driver_name = driver_name
         self._race_phase = 0
         self._race_finished = False
         self._race_finished_elapsed_s = 0.0
 
     def set_track(self, track: TrackGeometry) -> None:
         """Swap circuits and reset the current solo car or multi-car grid."""
+        race_configuration = (
+            (self.race_env.cars_per_race, self.race_driver_name or "baseline")
+            if self.race_env is not None else None
+        )
         self.track = track
         self.track_name = track.name
         self.planner = JEVPlanner(track)
         self.neural.bind_track(track)
-        if self.neural.policy is not None and getattr(self.neural.policy, "obs_dim", 25) > 25:
-            self._make_race_env()
+        if race_configuration is not None:
+            self._make_race_env(*race_configuration)
         self.reset(keep_track=True)
 
     def load_checkpoint(self, checkpoint: str | Path) -> dict:
@@ -76,9 +84,10 @@ class SimulationEngine:
         self.neural.bind_track(self.track)
         self.checkpoint_path = str(path)
         if policy.obs_dim > 25:
-            self._make_race_env()
+            self._make_race_env(driver_name="neural_network")
         else:
             self.race_env = None
+            self.race_driver_name = None
         self.controller_name = "neural_network"
         self.reset(keep_track=True)
         return {
@@ -91,7 +100,7 @@ class SimulationEngine:
         }
 
     def reset(self, keep_track: bool = False) -> None:
-        if self.race_env is not None and self.controller_name == "neural_network":
+        if self.race_env is not None:
             self.race_env.reset()
             self._race_phase = 0
             self._race_actions.fill(0.0)
@@ -149,10 +158,40 @@ class SimulationEngine:
         if name == "baseline":
             self.controller_name = "baseline"
             self.race_env = None
+            self.race_driver_name = None
         else:
             self.controller_name = "neural_network"
-            if getattr(self.neural.policy, "obs_dim", 25) > 25 and self.race_env is None:
-                self._make_race_env()
+            if getattr(self.neural.policy, "obs_dim", 25) > 25:
+                cars_per_race = self.race_env.cars_per_race if self.race_env is not None else None
+                if self.race_driver_name != "neural_network":
+                    self._make_race_env(cars_per_race=cars_per_race, driver_name="neural_network")
+            else:
+                self.race_env = None
+                self.race_driver_name = None
+        self.reset(keep_track=True)
+
+    def start_race(self, cars_per_race: int = 4) -> None:
+        """Start a 2-4 car race using a loaded self-play policy or baseline AI."""
+        from .rl.env import MAX_CARS_PER_RACE
+
+        if not isinstance(cars_per_race, int) or isinstance(cars_per_race, bool):
+            raise ValueError("cars_per_race must be an integer from 2 to 4")
+        if not 2 <= cars_per_race <= MAX_CARS_PER_RACE:
+            raise ValueError("cars_per_race must be between 2 and 4")
+        use_neural = self.neural.available and getattr(self.neural.policy, "obs_dim", 25) > 25
+        driver_name = "neural_network" if use_neural else "baseline"
+        self.controller_name = driver_name
+        self._make_race_env(cars_per_race=cars_per_race, driver_name=driver_name)
+        self.reset(keep_track=True)
+
+    def stop_race(self) -> None:
+        """Return from a multi-car event to the current track's solo simulation."""
+        was_policy_race = self.race_env is not None and self.race_driver_name == "neural_network"
+        self.race_env = None
+        self.race_driver_name = None
+        self._race_actions = []
+        if was_policy_race:
+            self.controller_name = "baseline"
         self.reset(keep_track=True)
 
     def _step_race(self, dt: float) -> None:
@@ -172,14 +211,45 @@ class SimulationEngine:
                 self._sync_primary_from_race()
         else:
             if self._race_phase == 0:
-                import torch
+                if self.race_driver_name == "neural_network":
+                    import torch
 
-                observations = self.race_env.observe()
-                device = next(self.neural.policy.parameters()).device
-                tensor = torch.as_tensor(observations, dtype=torch.float32, device=device)
-                with torch.inference_mode():
-                    mean, _, _ = self.neural.policy.forward(tensor)
-                    self._race_actions = torch.tanh(mean).cpu().numpy()
+                    observations = self.race_env.observe()
+                    device = next(self.neural.policy.parameters()).device
+                    tensor = torch.as_tensor(observations, dtype=torch.float32, device=device)
+                    with torch.inference_mode():
+                        mean, _, _ = self.neural.policy.forward(tensor)
+                        self._race_actions = torch.tanh(mean).cpu().numpy()
+                else:
+                    import numpy as np
+
+                    for car in range(self.race_env.cars_per_race):
+                        state = VehicleState(
+                            x=float(self.race_env.x[0, car]),
+                            y=float(self.race_env.y[0, car]),
+                            heading_rad=float(self.race_env.heading[0, car]),
+                            speed_mps=float(self.race_env.speed[0, car]),
+                            acceleration_mps2=float(self.race_env.acceleration[0, car]),
+                            yaw_rate_rad_s=float(self.race_env.yaw_rate[0, car]),
+                        )
+                        plan = self.planner.plan(state.x, state.y, state.speed_mps)
+                        ft = self.race_env.tracks[self.race_env.track_idx[0]]
+                        ahead_gaps = [
+                            ((float(self.race_env.along[0, other]) - float(self.race_env.along[0, car])) % ft.length_m, other)
+                            for other in range(self.race_env.cars_per_race)
+                            if other != car and self.race_env.active[0, other]
+                        ]
+                        nearby_ahead = [item for item in ahead_gaps if 2.0 < item[0] < 35.0]
+                        if nearby_ahead:
+                            gap, leader = min(nearby_ahead)
+                            following_speed = float(self.race_env.speed[0, leader]) + max(0.0, gap - 9.0) * 0.35
+                            plan = replace(plan, target_speed_mps=min(plan.target_speed_mps, following_speed))
+                        control = self.baseline.compute(ControllerContext(state, plan))
+                        self._race_actions[car] = (
+                            control.steering,
+                            control.throttle - control.brake,
+                        )
+                    self._race_actions = np.clip(self._race_actions, -1.0, 1.0)
             self._race_phase += 1
             if self._race_phase >= self.RACE_CONTROL_STEPS:
                 _, _, _, _ = self.race_env.step(self._race_actions)
@@ -197,7 +267,7 @@ class SimulationEngine:
     def step(self, dt: float = FIXED_DT_S) -> None:
         if self.paused:
             return
-        if self.race_env is not None and self.controller_name == "neural_network":
+        if self.race_env is not None:
             self._step_race(dt)
             return
         self.sim_time_s += dt
@@ -222,9 +292,21 @@ class SimulationEngine:
     def _race_telemetry(self) -> tuple[list[dict], dict, dict]:
         env = self.race_env
         ft = env.tracks[env.track_idx[0]]
+        race_order = sorted(
+            range(env.cars_per_race),
+            key=lambda car: (
+                0 if env.finished[0, car] else 1,
+                int(env.finish_step[0, car]) if env.finished[0, car] else -float(env.lap_progress[0, car]),
+                car,
+            ),
+        )
+        live_positions = {car: position for position, car in enumerate(race_order, start=1)}
         vehicles = []
+        plans = []
         for car in range(env.cars_per_race):
             action = self._race_actions[car]
+            plan = self.planner.plan(float(env.x[0, car]), float(env.y[0, car]), float(env.speed[0, car]))
+            plans.append(plan)
             fraction = min(1.0, max(0.0, float(env.lap_progress[0, car]) / ft.race_length_m))
             vehicles.append({
                 "id": f"car-{car + 1}",
@@ -240,9 +322,9 @@ class SimulationEngine:
                 "progress_m": float(env.lap_progress[0, car]),
                 "fraction": fraction,
                 "status": str(env.reason[0, car]),
-                "position": int(env.rank[0, car]) or None,
-                "target_waypoint": {"x": self._last_plan.target_x, "y": self._last_plan.target_y},
-                "route_id": self._last_plan.route_id,
+                "position": int(env.rank[0, car]) or live_positions[car],
+                "target_waypoint": {"x": plan.target_x, "y": plan.target_y},
+                "route_id": plan.route_id,
             })
         primary_index = next(
             (index for index, vehicle in enumerate(vehicles)
@@ -250,6 +332,7 @@ class SimulationEngine:
             next((index for index in range(env.cars_per_race) if env.active[0, index]), 0),
         )
         primary = vehicles[primary_index]
+        self._last_plan = plans[primary_index]
         progress = {
             "distance_m": primary["progress_m"],
             "fraction": primary["fraction"],
@@ -263,7 +346,7 @@ class SimulationEngine:
             "track": ft.name,
             "finished": False,
             "cars": [
-                {"car": index, "position": int(env.rank[0, index]) or None,
+                {"car": index, "position": int(env.rank[0, index]) or live_positions[index],
                  "status": str(env.reason[0, index]), "progress_m": float(env.lap_progress[0, index])}
                 for index in range(env.cars_per_race)
             ],
@@ -279,7 +362,7 @@ class SimulationEngine:
         off_track = projection.signed_lateral_m > projection.width_left_m or projection.signed_lateral_m < -projection.width_right_m
         plan = self._last_plan
 
-        if self.race_env is not None and self.controller_name == "neural_network":
+        if self.race_env is not None:
             vehicles, race_progress, race = self._race_telemetry()
             primary = next(
                 (vehicle for vehicle in vehicles if vehicle["status"] == "racing" and vehicle["speed_mps"] > 0.5),
